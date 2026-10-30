@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pencil Timelapse Studio</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<nav class="tabs" aria-label="Tools">
+  <div class="wrap">
+    <a class="tab active" href="/" aria-current="page">Vẽ chân dung</a>
+    <a class="tab" href="/story">Video câu chuyện</a>
+    <a class="tab" href="/players">Football players</a>
+    <a class="tab" href="/animals">Animals</a>
+    <a class="tab" href="/travel">Travel</a>
+    <a class="tab" href="/pets">Pet Diary</a>
+    <a class="tab" href="/cartoon">Cartoon</a>
+  </div>
+</nav>
+<header class="masthead">
+  <div class="wrap">
+    <h1>Pencil Timelapse Studio</h1>
+    <p class="lede">Turn a finished pencil portrait into a vertical video of it being drawn on a blank page.</p>
+    <p class="notice" role="note">
+      <strong>Simulated effect.</strong> The drawing order, strokes, hatching and the moving pencil are generated
+      with deterministic image processing (OpenCV + NumPy). They are a plausible imitation, not a reconstruction
+      of how the artist actually drew the picture. No AI video model or cloud service is used.
+    </p>
+  </div>
+</header>
+
+<main class="wrap">
+  {% if not ffmpeg.ok %}
+  <div class="alert alert-error" role="alert"><strong>FFmpeg is not available.</strong> {{ ffmpeg.message }}</div>
+  {% endif %}
+
+  <form id="job-form" novalidate>
+    <section class="uploads" aria-label="Images">
+      {% for key, title, hint in [
+        ("start", "Start", "Draw on an empty page, or continue a drawing that is partly finished."),
+        ("end", "End image", "The completed pencil portrait. The video ends on exactly this image.")] %}
+      <div class="card upload{% if key == 'start' %} blank{% endif %}" data-key="{{ key }}">
+        <div class="card-head">
+          <h2>{{ loop.index }}. {{ title }}</h2>
+          <p class="hint">{{ hint }}</p>
+          {% if key == "start" %}
+          <div class="segmented" role="radiogroup" aria-label="Start from">
+            <label><input type="radio" name="start_mode" value="blank" checked> Blank white paper</label>
+            <label><input type="radio" name="start_mode" value="image"> My start image</label>
+          </div>
+          {% endif %}
+        </div>
+        <label class="drop" for="{{ key }}-input">
+          <input id="{{ key }}-input" name="{{ key }}" type="file" accept="{{ accept }},image/*" hidden>
+          <div class="frame" data-role="frame">
+            <img alt="" data-role="preview" hidden>
+            <span class="placeholder" data-role="placeholder">
+              <svg width="28" height="28" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M5 20h14v-2H5v2zm7-18-5.5 5.5 1.42 1.42L11 5.83V16h2V5.83l3.08 3.09 1.42-1.42L12 2z"/></svg>
+              Drop an image or click to choose
+              <small>PNG, JPEG, WEBP, BMP or TIFF, up to {{ max_upload_mb }} MB</small>
+            </span>
+            {% if key == "start" %}
+            <span class="paper-note" data-role="paper-note">Blank sheet<small>matched to the End image's paper</small></span>
+            {% endif %}
+          </div>
+        </label>
+        <p class="meta" data-role="meta" aria-live="polite"></p>
+      </div>
+      {% endfor %}
+    </section>
+
+    <section class="card settings" aria-label="Video settings">
+      <div class="card-head">
+        <h2>3. Video settings</h2>
+        <p class="hint">Previews above show how each image fits the vertical canvas.</p>
+      </div>
+      <div class="grid">
+        <label>Duration <span class="unit">seconds</span>
+          <input type="number" name="duration" id="duration" value="{{ defaults.duration|int }}" min="{{ limits.min_duration|int }}" max="{{ limits.max_duration|int }}" step="1">
+        </label>
+        <label>Frame rate <span class="unit">fps</span>
+          <select name="fps" id="fps">
+            {% for f in [24, 25, 30, 50, 60] %}<option value="{{ f }}" {% if f == defaults.fps %}selected{% endif %}>{{ f }}</option>{% endfor %}
+          </select>
+        </label>
+        <label>Resolution
+          <select name="resolution" id="resolution">
+            {% for p in presets %}<option value="{{ p }}" {% if loop.first %}selected{% endif %}>{{ p.replace('x', ' × ') }}{% if loop.first %} (Full HD){% endif %}</option>{% endfor %}
+            <option value="custom">Custom…</option>
+          </select>
+        </label>
+        <label>Final hold <span class="unit">seconds</span>
+          <input type="number" name="hold" id="hold" value="{{ defaults.hold }}" min="0" max="10" step="0.5">
+        </label>
+        <label class="check span-2"><input type="checkbox" name="show_pencil" value="true" checked> Show a pencil drawing the strokes</label>
+        <div class="custom-size" id="custom-size" hidden>
+          <label>Width <input type="number" name="width" value="{{ defaults.width }}" min="160" max="3840" step="2"></label>
+          <label>Height <input type="number" name="height" value="{{ defaults.height }}" min="160" max="3840" step="2"></label>
+        </div>
+      </div>
+
+      <div class="timeline" id="timeline" aria-label="Animation timeline"></div>
+
+      <details class="advanced">
+        <summary>Advanced options</summary>
+        <div class="grid">
+          <label class="check"><input type="checkbox" name="align" value="true" checked> Auto-align start to end</label>
+          <label class="check"><input type="checkbox" name="match_paper" value="true" checked> Match paper tone</label>
+          <label class="check"><input type="checkbox" name="construction_lines" value="true" checked> Light construction lines</label>
+          <label>Simulated stroke texture
+            <input type="range" name="stroke_strength" min="0" max="1" step="0.05" value="{{ defaults.stroke_strength }}">
+          </label>
+          <label>Paper texture <span class="unit">padding / blank start</span>
+            <input type="range" name="paper_texture" min="0" max="1" step="0.05" value="{{ defaults.paper_texture }}">
+          </label>
+          <label>Quality (CRF) <span class="unit">lower = better</span>
+            <input type="number" name="crf" value="{{ defaults.crf }}" min="0" max="51">
+          </label>
+          <label>Encoder speed
+            <select name="preset">
+              {% for p in x264_presets %}<option value="{{ p }}" {% if p == defaults.preset %}selected{% endif %}>{{ p }}</option>{% endfor %}
+            </select>
+          </label>
+          <label>Pencil look
+            <select name="pencil_style">
+              <option value="black" selected>Black (artist pencil)</option>
+              <option value="yellow">Yellow</option>
+              <option value="natural">Natural wood</option>
+            </select>
+          </label>
+          <label>Pencil size
+            <input type="range" name="pencil_scale" min="0.6" max="1.6" step="0.1" value="{{ defaults.pencil_scale }}">
+          </label>
+          <label>Seed <span class="unit">texture variation</span>
+            <input type="number" name="seed" value="{{ defaults.seed }}" min="0" step="1">
+          </label>
+        </div>
+      </details>
+
+      <div class="actions">
+        <button type="submit" class="primary" id="generate" {% if not ffmpeg.ok %}disabled{% endif %}>Generate video</button>
+        <p class="form-error" id="form-error" role="alert" hidden></p>
+      </div>
+    </section>
+  </form>
+
+  <section class="card status" id="status" hidden aria-live="polite">
+    <div class="card-head">
+      <h2 id="status-title">Rendering</h2>
+      <p class="hint" id="status-detail"></p>
+    </div>
+    <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progressbar">
+      <div class="bar" id="bar"></div>
+    </div>
+    <p class="progress-text"><span id="pct">0%</span> <span id="eta"></span></p>
+  </section>
+
+  <section class="card result" id="result" hidden>
+    <div class="card-head">
+      <h2>Result</h2>
+      <p class="hint" id="result-summary"></p>
+    </div>
+    <div class="result-body">
+      <div class="player">
+        <video id="video" controls playsinline loop preload="metadata"></video>
+      </div>
+      <div class="result-side">
+        <a class="button primary" id="download" href="#" download>Download MP4</a>
+        <ul class="notes" id="notes"></ul>
+        <p class="disclaimer">This video shows simulated pencil effects produced by image processing. It does not
+          depict the real hand movements used to make the artwork.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap footer">
+  Runs locally with OpenCV, Pillow, NumPy and FFmpeg. Uploaded images are deleted right after rendering;
+  videos are deleted after a few hours.
+</footer>
+
+<script>
+  window.PENCIL = {
+    maxUploadMb: {{ max_upload_mb }},
+    minSide: {{ min_side }},
+    stages: {{ stages|tojson }}
+  };
+</script>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

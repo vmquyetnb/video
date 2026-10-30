@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Travel in Pencil</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<nav class="tabs" aria-label="Tools">
+  <div class="wrap">
+    <a class="tab" href="/">Vẽ chân dung</a>
+    <a class="tab" href="/story">Video câu chuyện</a>
+    <a class="tab" href="/players">Football players</a>
+    <a class="tab" href="/animals">Animals</a>
+    <a class="tab active" href="/travel" aria-current="page">Travel</a>
+    <a class="tab" href="/pets">Pet Diary</a>
+    <a class="tab" href="/cartoon">Cartoon</a>
+  </div>
+</nav>
+<header class="masthead">
+  <div class="wrap">
+    <h1>Travel in pencil</h1>
+    <p class="lede">Famous places are drawn in pencil one by one while their facts are written beside them.
+      Then each drawing comes to life: the real photo or video clip fills the screen with the place's name,
+      a map pin and a passport stamp, and a paper plane flies on to the next place.</p>
+    <p class="notice" role="note">
+      <strong>Simulated drawing.</strong> Photos come from Openverse (Flickr, Creative Commons, no key needed),
+      and with a free key from Pexels or Pixabay also video clips; Wikimedia is not used. GPT or Gemini can
+      write the facts. Check the facts before you publish, and keep the photo credits.
+    </p>
+  </div>
+</header>
+
+<main class="wrap">
+  {% if not ffmpeg.ok %}
+  <div class="alert alert-error" role="alert"><strong>FFmpeg is not available.</strong> {{ ffmpeg.message }}</div>
+  {% endif %}
+
+  <section class="card">
+    <div class="card-head">
+      <h2>1. Places</h2>
+      <p class="hint">Let AI write the script, or add the places and facts yourself.</p>
+    </div>
+    <div class="source">
+      <h3>Write with AI</h3>
+      <div class="grid">
+        <label>Writer
+          <select id="provider">
+            <option value="gemini">Gemini (Google)</option>
+            <option value="openai">GPT (OpenAI)</option>
+          </select>
+        </label>
+        <label>API key <span class="unit" id="key-note">saved in this browser only</span>
+          <input type="password" id="ai-key" autocomplete="off" placeholder="paste your key">
+        </label>
+        <label>Model <span class="unit">optional</span>
+          <input type="text" id="model" maxlength="80" autocomplete="off">
+        </label>
+        <label>Facts per place
+          <input type="number" id="fact-count" value="3" min="1" max="6" step="1">
+        </label>
+        <label class="span-2">Theme
+          <input type="text" id="theme" maxlength="200" placeholder="The 7 new wonders of the world">
+        </label>
+        <label>Number of places
+          <input type="number" id="count" value="7" min="1" max="20" step="1">
+        </label>
+        <span></span>
+        <label class="span-2">Or exactly these places <span class="unit">one per line, optional</span>
+          <textarea id="names" rows="3" placeholder="Eiffel Tower&#10;Machu Picchu&#10;Santorini"></textarea>
+        </label>
+      </div>
+      <div class="row-actions">
+        <button type="button" id="write">Write the script</button>
+        <span class="hint" id="write-info" aria-live="polite"></span>
+      </div>
+      <p class="hint">Free keys: Gemini at aistudio.google.com, GPT at platform.openai.com. The place names are
+        sent to the service you choose.</p>
+    </div>
+    <div class="source">
+      <h3>Photo and video libraries</h3>
+      <p class="hint">Without keys, photos come from Openverse (searches can take up to a minute). Add a free
+        Pexels or Pixabay key to also get video clips: the drawing is made from the clip's first picture, and
+        the clip plays when the drawing comes to life.</p>
+      <div class="grid">
+        <label class="span-2">Pexels API key <span class="unit">optional · pexels.com/api</span>
+          <input type="password" id="pexels-key" autocomplete="off">
+        </label>
+        <label class="span-2">Pixabay API key <span class="unit">optional · pixabay.com/api/docs</span>
+          <input type="password" id="pixabay-key" autocomplete="off">
+        </label>
+      </div>
+    </div>
+    <div class="row-actions">
+      <button type="button" id="add">Add a place</button>
+      <button type="button" id="find-all" hidden>Find pictures for all</button>
+      <span class="hint" id="list-info" aria-live="polite"></span>
+    </div>
+    <div class="animal-list" id="place-list"></div>
+  </section>
+
+  <section class="card" id="export-card" hidden>
+    <div class="card-head">
+      <h2>2. Video</h2>
+    </div>
+    <div class="grid">
+      <label>Title
+        <input type="text" id="title" maxlength="50" placeholder="Wonders of the World">
+      </label>
+      <label>Frame
+        <select id="resolution">
+          <option value="1920x1080" selected>Landscape 16:9 (1920 × 1080)</option>
+          <option value="1080x1920">Portrait 9:16 (1080 × 1920)</option>
+          <option value="1080x1080">Square 1:1 (1080 × 1080)</option>
+        </select>
+      </label>
+      <label>Drawing time per place <span class="unit">seconds</span>
+        <input type="number" id="seconds" value="10" min="4" max="60" step="1">
+      </label>
+      <label>In colour <span class="unit">seconds per place</span>
+        <input type="number" id="reveal" value="{{ reveal }}" min="1.5" max="15" step="0.5">
+      </label>
+      <label class="span-2">Music <span class="unit">optional · mp3, m4a, wav… up to {{ max_audio_mb }} MB</span>
+        <input type="file" id="music" accept="audio/*,.mp3,.m4a,.wav,.aac,.ogg,.flac">
+      </label>
+      <p class="span-2 group-label">Keep viewers watching</p>
+      <label class="check span-2">
+        <input type="checkbox" id="guess" checked>
+        <span>"Guess the place?" while drawing; the name appears when the drawing is finished</span>
+      </label>
+      <label class="check span-2">
+        <input type="checkbox" id="intro" checked>
+        <span>Intro: a pencil world map with every place pinned and the route flown, a big headline</span>
+      </label>
+      <label>Intro headline <span class="unit">empty = the title</span>
+        <input type="text" id="hook" maxlength="40" placeholder="WONDERS OF THE WORLD">
+      </label>
+      <label class="check span-2">
+        <input type="checkbox" id="outro" checked>
+        <span>Ending: all the drawings as postcards, then ask for likes, subscriptions and the next place</span>
+      </label>
+      <label class="span-2">Ending question
+        <input type="text" id="question" maxlength="80" value="{{ question }}">
+      </label>
+      <label class="check span-2">
+        <input type="checkbox" id="sfx" checked>
+        <span>Sound effects</span>
+      </label>
+    </div>
+    <div class="actions">
+      <button type="button" class="primary" id="generate" {% if not ffmpeg.ok %}disabled{% endif %}>Draw the places</button>
+      <p class="form-error" id="form-error" role="alert" hidden></p>
+    </div>
+  </section>
+
+  <section class="card status" id="status" hidden aria-live="polite">
+    <div class="card-head">
+      <h2 id="status-title">Drawing</h2>
+      <p class="hint" id="status-detail"></p>
+    </div>
+    <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progressbar">
+      <div class="bar" id="bar"></div>
+    </div>
+    <p class="progress-text"><span id="pct">0%</span> <span id="eta"></span></p>
+  </section>
+
+  <section class="card result" id="result" hidden>
+    <div class="card-head">
+      <h2>Result</h2>
+      <p class="hint" id="result-summary"></p>
+    </div>
+    <div class="result-body wide">
+      <div class="player wide">
+        <video id="video" controls playsinline preload="metadata"></video>
+      </div>
+      <div class="result-side">
+        <a class="button primary" id="download" href="#" download>Download MP4</a>
+        <a class="button" id="image" href="#">Download postcards (PNG)</a>
+        <a class="button" id="credits" href="#" hidden>Download photo credits</a>
+        <p class="disclaimer">The drawings and the pencil's movements are simulated with image processing.
+          Paste the photo credits into the video description: Creative Commons photos must be credited.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap footer">Runs on your computer. Searching photos and writing with AI need the internet.</footer>
+<script>window.TRAVEL = {{ {"models": models, "env": env_keys, "maxVideoMb": max_video_mb, "maxUploadMb": max_upload_mb} | tojson }};</script>
+<script src="{{ url_for('static', filename='travel.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Football Players in Pencil</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<nav class="tabs" aria-label="Tools">
+  <div class="wrap">
+    <a class="tab" href="/">Vẽ chân dung</a>
+    <a class="tab" href="/story">Video câu chuyện</a>
+    <a class="tab active" href="/players" aria-current="page">Football players</a>
+    <a class="tab" href="/animals">Animals</a>
+    <a class="tab" href="/travel">Travel</a>
+    <a class="tab" href="/pets">Pet Diary</a>
+    <a class="tab" href="/cartoon">Cartoon</a>
+  </div>
+</nav>
+<header class="masthead">
+  <div class="wrap">
+    <h1>Football players in pencil</h1>
+    <p class="lede">Players are drawn in pencil one by one into a single picture, with their names written
+      underneath, and you can add music or narration.</p>
+    <p class="notice" role="note">
+      <strong>Simulated drawing.</strong> Use your own photos, or let the tool find famous players on Wikidata and
+      Wikimedia Commons (free licences, credited at the end of the video). By default the whole photo is
+      redrawn in pencil, nothing cut; you can also choose a head-and-shoulders framing. Photos are turned into
+      graphite drawings with image processing.
+    </p>
+  </div>
+</header>
+
+<main class="wrap">
+  {% if not ffmpeg.ok %}
+  <div class="alert alert-error" role="alert"><strong>FFmpeg is not available.</strong> {{ ffmpeg.message }}</div>
+  {% endif %}
+
+  <section class="card">
+    <div class="card-head">
+      <h2>1. Players</h2>
+      <p class="hint">Upload your own photos of the players, find a country's famous players, or both.</p>
+    </div>
+    <div class="source">
+      <h3>Your photos</h3>
+      <p class="hint">One photo per player, showing the whole head with some space above the hair (JPG, PNG or
+        WebP, up to {{ max_upload_mb }} MB). Names are taken from the file names; you can change them.</p>
+      <div class="row-actions">
+        <label class="button" for="photos">Add photos</label>
+        <input type="file" id="photos" accept="image/*,.jpg,.jpeg,.png,.webp" multiple hidden>
+        <span class="hint" id="photos-info" aria-live="polite"></span>
+      </div>
+    </div>
+    <div class="source">
+      <h3>Famous players of a country</h3>
+      <div class="row-actions">
+        <label class="inline">Country
+          <input type="text" id="country" list="country-list" value="" placeholder="Portugal" autocomplete="off">
+          <datalist id="country-list">
+            {% for c in countries %}<option value="{{ c }}">{% endfor %}
+          </datalist>
+        </label>
+        <button type="button" id="find">Find players</button>
+        <span class="hint" id="find-info" aria-live="polite"></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="players-card" hidden>
+    <div class="card-head">
+      <h2>2. Order and names</h2>
+      <p class="hint">Ticked players are drawn from left to right, up to 12. Use the arrows to change the order.</p>
+    </div>
+    <div class="player-grid" id="player-grid"></div>
+  </section>
+
+  <section class="card" id="export-card" hidden>
+    <div class="card-head">
+      <h2>3. Video</h2>
+    </div>
+    <div class="grid">
+      <label>Title
+        <input type="text" id="title" maxlength="40" placeholder="PORTUGAL">
+      </label>
+      <label>Frame
+        <select id="resolution">
+          <option value="1920x1080" selected>Landscape 16:9 (1920 × 1080)</option>
+          <option value="1080x1920">Portrait 9:16 (1080 × 1920)</option>
+          <option value="1080x1080">Square 1:1 (1080 × 1080)</option>
+        </select>
+      </label>
+      <label>Picture
+        <select id="background">
+          <option value="whole" selected>Whole photo, nothing cut</option>
+          <option value="shade">Head and shoulders, background shaded</option>
+          <option value="photo">Head and shoulders, photo background</option>
+        </select>
+      </label>
+      <label>Drawing time per player <span class="unit">seconds</span>
+        <input type="number" id="seconds" value="10" min="4" max="60" step="1">
+      </label>
+      <label class="span-2">Sound <span class="unit">music or voice, optional · mp3, m4a, wav… up to {{ max_audio_mb }} MB</span>
+        <input type="file" id="audio" accept="audio/*,.mp3,.m4a,.wav,.aac,.ogg,.flac">
+      </label>
+      <label class="check span-2" id="fit-row" hidden>
+        <input type="checkbox" id="fit" checked>
+        <span>Make the video as long as the sound (the drawing time is set automatically)</span>
+      </label>
+      <p class="span-2 group-label">Keep viewers watching</p>
+      <label class="check span-2">
+        <input type="checkbox" id="intro" checked>
+        <span>Intro: show the finished picture first with a big headline, then "Let's draw!"</span>
+      </label>
+      <label>Intro headline <span class="unit">empty = the title</span>
+        <input type="text" id="hook" maxlength="40" placeholder="PORTUGAL LEGENDS">
+      </label>
+      <label class="check span-2">
+        <input type="checkbox" id="highlights" checked>
+        <span>"Who's next?" mystery silhouette before each player, and a close-up with a numbered badge after it</span>
+      </label>
+      <label class="check span-2">
+        <input type="checkbox" id="outro" checked>
+        <span>Ending: ask for likes, subscriptions and the next team in the comments</span>
+      </label>
+      <label class="span-2">Ending question
+        <input type="text" id="question" maxlength="80" value="Which team should I draw next?">
+      </label>
+      <label class="check span-2">
+        <input type="checkbox" id="sfx" checked>
+        <span>Sound effects (mixed with your sound if you add one)</span>
+      </label>
+    </div>
+    <div class="actions">
+      <button type="button" class="primary" id="generate" {% if not ffmpeg.ok %}disabled{% endif %}>Draw the players</button>
+      <p class="form-error" id="form-error" role="alert" hidden></p>
+    </div>
+  </section>
+
+  <section class="card status" id="status" hidden aria-live="polite">
+    <div class="card-head">
+      <h2 id="status-title">Drawing</h2>
+      <p class="hint" id="status-detail"></p>
+    </div>
+    <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progressbar">
+      <div class="bar" id="bar"></div>
+    </div>
+    <p class="progress-text"><span id="pct">0%</span> <span id="eta"></span></p>
+  </section>
+
+  <section class="card result" id="result" hidden>
+    <div class="card-head">
+      <h2>Result</h2>
+      <p class="hint" id="result-summary"></p>
+    </div>
+    <div class="result-body wide">
+      <div class="player wide">
+        <video id="video" controls playsinline preload="metadata"></video>
+      </div>
+      <div class="result-side">
+        <a class="button primary" id="download" href="#" download>Download MP4</a>
+        <a class="button" id="image" href="#">Download picture (PNG)</a>
+        <a class="button" id="credits" href="#" hidden>Download photo credits</a>
+        <p class="disclaimer">The drawings and the pencil's movements are simulated with image processing. Keep
+          the photo credits when you publish, and note that using real people's likeness commercially may need
+          their permission.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap footer">Runs on your computer. Searching players and downloading photos needs the internet.</footer>
+<script src="{{ url_for('static', filename='players.js') }}"></script>
+</body>
+</html>

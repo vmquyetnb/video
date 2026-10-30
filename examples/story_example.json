@@ -1,0 +1,27 @@
+{
+  "title": "Thói quen rửa tay của An",
+  "narration": null,
+  "music": null,
+  "scenes": [
+    {
+      "text": "An là một cậu bé học lớp ba. Mỗi sáng, An vội vàng chạy đến trường và thường quên rửa tay sau khi chơi ngoài sân.",
+      "image_query": "children playing schoolyard"
+    },
+    {
+      "text": "Một hôm, An bị đau bụng và phải nghỉ học. Bác sĩ khám cho An và nhẹ nhàng giải thích rằng vi khuẩn có thể bám trên đôi tay của chúng ta.",
+      "image_query": "doctor examining child"
+    },
+    {
+      "text": "Cô giáo hướng dẫn cả lớp rửa tay đúng cách: làm ướt tay, xoa xà phòng ít nhất hai mươi giây, rồi rửa sạch dưới vòi nước.",
+      "image_query": "children washing hands soap"
+    },
+    {
+      "text": "Từ đó, An luôn rửa tay trước khi ăn và sau khi đi vệ sinh. An còn nhắc em gái cùng làm theo.",
+      "image_query": "boy washing hands"
+    },
+    {
+      "text": "Một thói quen nhỏ, nhưng giúp cả gia đình An khỏe mạnh hơn mỗi ngày.",
+      "image_query": "family eating meal together"
+    }
+  ]
+}

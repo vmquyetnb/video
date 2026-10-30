@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pet Diary in Pencil</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<nav class="tabs" aria-label="Tools">
+  <div class="wrap">
+    <a class="tab" href="/">Vẽ chân dung</a>
+    <a class="tab" href="/story">Video câu chuyện</a>
+    <a class="tab" href="/players">Football players</a>
+    <a class="tab" href="/animals">Animals</a>
+    <a class="tab" href="/travel">Travel</a>
+    <a class="tab active" href="/pets" aria-current="page">Pet Diary</a>
+    <a class="tab" href="/cartoon">Cartoon</a>
+  </div>
+</nav>
+<header class="masthead">
+  <div class="wrap">
+    <h1>Pet diary in pencil</h1>
+    <p class="lede">A day in a pet's life, told by the pet. Each moment is drawn in pencil while the pet's thought
+      is written and read aloud; then the drawing comes to life as the pet's camera with a punchline in captions,
+      and paw prints walk on to the next moment.</p>
+    <p class="notice" role="note">
+      <strong>Made to be watched to the end:</strong> a cold open (the day's big moment freezes and turns to
+      pencil: "how did I end up here?"), a day bar that shows how much is left, a "What happens next?" guess
+      with a countdown, and a question for the comments. Use your own pet's photos and clips, or free photos
+      and clips that may be changed and reused (Openverse, Pexels, Pixabay). Do not use other creators' videos.
+    </p>
+  </div>
+</header>
+
+<main class="wrap">
+  {% if not ffmpeg.ok %}
+  <div class="alert alert-error" role="alert"><strong>FFmpeg is not available.</strong> {{ ffmpeg.message }}</div>
+  {% endif %}
+
+  <section class="card">
+    <div class="card-head">
+      <h2>1. The pet</h2>
+      <p class="hint">Start from a ready-made diary, let AI write one, or write the moments yourself.</p>
+    </div>
+    <div class="grid">
+      <label>Pet's name
+        <input type="text" id="pet" maxlength="30" placeholder="Biscuit">
+      </label>
+      <label>Kind
+        <select id="kind">
+          {% for k in kinds %}<option value="{{ k }}">{{ k }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Voice <span class="unit">the pet reads its own lines</span>
+        <select id="voice">
+          <option value="">by kind</option>
+          {% for v in voices %}<option value="{{ v }}">{{ v }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Voice pitch <span class="unit">0 = by kind; 0.6 low … 1.8 high</span>
+        <input type="number" id="pitch" value="0" min="0" max="1.8" step="0.05">
+      </label>
+    </div>
+    <div class="row-actions">
+      {% for key, s in samples.items() %}
+      <button type="button" class="small" data-sample="{{ key }}">Load sample: {{ s.pet }} ({{ s.kind }})</button>
+      {% endfor %}
+      <span class="hint" id="sample-info" aria-live="polite"></span>
+    </div>
+    <div class="source">
+      <h3>Write with AI</h3>
+      <div class="grid">
+        <label>Writer
+          <select id="provider">
+            <option value="gemini">Gemini (Google)</option>
+            <option value="openai">GPT (OpenAI)</option>
+          </select>
+        </label>
+        <label>API key <span class="unit" id="key-note">saved in this browser only</span>
+          <input type="password" id="ai-key" autocomplete="off" placeholder="paste your key">
+        </label>
+        <label>Model <span class="unit">optional</span>
+          <input type="text" id="model" maxlength="80" autocomplete="off">
+        </label>
+        <label>Moments
+          <input type="number" id="count" value="6" min="3" max="12" step="1">
+        </label>
+        <label class="span-2">What happens today? <span class="unit">optional</span>
+          <input type="text" id="idea" maxlength="400" placeholder="first day at the beach; the vet; a new kitten moves in">
+        </label>
+      </div>
+      <div class="row-actions">
+        <button type="button" id="write">Write the diary</button>
+        <span class="hint" id="write-info" aria-live="polite"></span>
+      </div>
+    </div>
+    <div class="source">
+      <h3>Photo and video libraries</h3>
+      <p class="hint">Without keys, photos come from Openverse (searches can take up to a minute). With a free Pexels
+        or Pixabay key you also get video clips, which make the best pet-camera moments. Your own pet's clips
+        work best of all: upload them in each moment.</p>
+      <div class="grid">
+        <label class="span-2">Pexels API key <span class="unit">optional · pexels.com/api</span>
+          <input type="password" id="pexels-key" autocomplete="off">
+        </label>
+        <label class="span-2">Pixabay API key <span class="unit">optional · pixabay.com/api/docs</span>
+          <input type="password" id="pixabay-key" autocomplete="off">
+        </label>
+      </div>
+    </div>
+    <div class="row-actions">
+      <button type="button" id="add">Add a moment</button>
+      <button type="button" id="find-all" hidden>Find pictures for all</button>
+      <span class="hint" id="list-info" aria-live="polite"></span>
+    </div>
+    <div class="animal-list" id="moment-list"></div>
+  </section>
+
+  <section class="card" id="export-card" hidden>
+    <div class="card-head">
+      <h2>2. Video</h2>
+    </div>
+    <div class="grid">
+      <label>Title <span class="unit">empty = "A Day in the Life of …"</span>
+        <input type="text" id="title" maxlength="60">
+      </label>
+      <label>Frame
+        <select id="resolution">
+          <option value="1080x1920" selected>Shorts 9:16 (1080 × 1920)</option>
+          <option value="1920x1080">Landscape 16:9 (1920 × 1080)</option>
+          <option value="1080x1080">Square 1:1 (1080 × 1080)</option>
+        </select>
+      </label>
+      <label>Drawing time per moment <span class="unit">seconds</span>
+        <input type="number" id="seconds" value="8" min="5" max="30" step="1">
+      </label>
+      <label>Real clip <span class="unit">seconds per moment, at least</span>
+        <input type="number" id="reveal" value="{{ reveal }}" min="1.5" max="10" step="0.5">
+      </label>
+      <label>Music
+        <select id="tune">
+          <option value="happy" selected>Built-in: happy ukulele</option>
+          <option value="calm">Built-in: calm</option>
+          <option value="none">None</option>
+        </select>
+      </label>
+      <label>Your own music <span class="unit">optional · replaces the built-in tune</span>
+        <input type="file" id="music" accept="audio/*,.mp3,.m4a,.wav,.aac,.ogg,.flac">
+      </label>
+      <p class="span-2 group-label">Keep viewers watching</p>
+      <label class="check span-2">
+        <input type="checkbox" id="cold-open" checked>
+        <span>Cold open: the big moment plays, freezes with a record scratch and turns to pencil, then the day rewinds</span>
+      </label>
+      <label class="span-2">What the pet says over the frozen moment
+        <input type="text" id="hook" maxlength="60" value="{{ hook }}">
+      </label>
+      <label class="check span-2">
+        <input type="checkbox" id="guess-on" checked>
+        <span>"What happens next?" before the big moment, with a 3-2-1 countdown</span>
+      </label>
+      <label>Answers <span class="unit">one per line, 2 to 4</span>
+        <textarea id="guess" rows="3" placeholder="Biscuit runs away&#10;Biscuit takes a bath&#10;Biscuit eats the soap"></textarea>
+      </label>
+      <label>Right answer
+        <input type="text" id="answer" maxlength="40" placeholder="Biscuit takes a bath">
+      </label>
+      <label class="check span-2">
+        <input type="checkbox" id="outro" checked>
+        <span>Ending: the sketchbook of the day, then ask for likes, subscriptions and a comment</span>
+      </label>
+      <label class="span-2">Ending question
+        <input type="text" id="question" maxlength="80" value="{{ question }}">
+      </label>
+      <label class="check span-2">
+        <input type="checkbox" id="sfx" checked>
+        <span>Sound effects</span>
+      </label>
+    </div>
+    <div class="actions">
+      <button type="button" class="primary" id="generate" {% if not ffmpeg.ok %}disabled{% endif %}>Draw the diary</button>
+      <p class="form-error" id="form-error" role="alert" hidden></p>
+    </div>
+  </section>
+
+  <section class="card status" id="status" hidden aria-live="polite">
+    <div class="card-head">
+      <h2 id="status-title">Drawing</h2>
+      <p class="hint" id="status-detail"></p>
+    </div>
+    <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progressbar">
+      <div class="bar" id="bar"></div>
+    </div>
+    <p class="progress-text"><span id="pct">0%</span> <span id="eta"></span></p>
+  </section>
+
+  <section class="card result" id="result" hidden>
+    <div class="card-head">
+      <h2>Result</h2>
+      <p class="hint" id="result-summary"></p>
+    </div>
+    <div class="result-body wide">
+      <div class="player wide">
+        <video id="video" controls playsinline preload="metadata"></video>
+      </div>
+      <div class="result-side">
+        <a class="button primary" id="download" href="#" download>Download MP4</a>
+        <a class="button" id="image" href="#">Download the sketchbook (PNG)</a>
+        <a class="button" id="credits" href="#" hidden>Download photo credits</a>
+        <p class="disclaimer">The drawings and the pencil's movements are simulated with image processing.
+          Paste the photo credits into the video description: Creative Commons photos must be credited.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap footer">Runs on your computer. Searching photos and writing with AI need the internet.</footer>
+<script>window.PETS = {{ {"models": models, "env": env_keys, "maxVideoMb": max_video_mb, "maxUploadMb": max_upload_mb,
+                         "samples": samples, "voices": pet_voices, "question": question, "hook": hook} | tojson }};</script>
+<script src="{{ url_for('static', filename='pets.js') }}"></script>
+</body>
+</html>

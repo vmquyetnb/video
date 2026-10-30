@@ -1,0 +1,8 @@
+numpy>=1.24
+# 4.x keeps the bundled Haar cascades used for face/eye detection (removed in OpenCV 5).
+opencv-python-headless>=4.8,<5
+Pillow>=10.0
+Flask>=3.0
+# Ships a static FFmpeg binary, used when no system ffmpeg is on PATH.
+imageio-ffmpeg>=0.4.9
+pytest>=7.0

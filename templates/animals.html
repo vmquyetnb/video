@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Animals in Pencil</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<nav class="tabs" aria-label="Tools">
+  <div class="wrap">
+    <a class="tab" href="/">Vẽ chân dung</a>
+    <a class="tab" href="/story">Video câu chuyện</a>
+    <a class="tab" href="/players">Football players</a>
+    <a class="tab active" href="/animals" aria-current="page">Animals</a>
+    <a class="tab" href="/travel">Travel</a>
+    <a class="tab" href="/pets">Pet Diary</a>
+    <a class="tab" href="/cartoon">Cartoon</a>
+  </div>
+</nav>
+<header class="masthead">
+  <div class="wrap">
+    <h1>Animals in pencil</h1>
+    <p class="lede">Each animal is drawn in pencil from your photo, then its name and facts are written beside it.
+      The next animal comes only when all the facts have been shown.</p>
+    <p class="notice" role="note">
+      <strong>Simulated drawing.</strong> Your photos are turned into graphite drawings and the pencil's
+      movements are simulated with image processing. The whole photo is drawn, nothing is cut.
+    </p>
+  </div>
+</header>
+
+<main class="wrap">
+  {% if not ffmpeg.ok %}
+  <div class="alert alert-error" role="alert"><strong>FFmpeg is not available.</strong> {{ ffmpeg.message }}</div>
+  {% endif %}
+
+  <section class="card">
+    <div class="card-head">
+      <h2>1. Animals</h2>
+      <p class="hint">Add one photo per animal (JPG, PNG or WebP, up to {{ max_upload_mb }} MB). Names are taken
+        from the file names. Write one fact per line; each fact stays on screen long enough to read. Add a
+        recording if you like: it starts when the pencil starts drawing that animal, and the video moves on
+        only when it has ended.</p>
+    </div>
+    <div class="row-actions">
+      <label class="button" for="photos">Add photos</label>
+      <input type="file" id="photos" accept="image/*,.jpg,.jpeg,.png,.webp" multiple hidden>
+      <span class="hint" id="photos-info" aria-live="polite"></span>
+    </div>
+    <div class="animal-list" id="animal-list"></div>
+  </section>
+
+  <section class="card" id="export-card" hidden>
+    <div class="card-head">
+      <h2>2. Video</h2>
+    </div>
+    <div class="grid">
+      <label>Title
+        <input type="text" id="title" maxlength="50" placeholder="Amazing Animals">
+      </label>
+      <label>Frame
+        <select id="resolution">
+          <option value="1920x1080" selected>Landscape 16:9 (1920 × 1080)</option>
+          <option value="1080x1920">Portrait 9:16 (1080 × 1920)</option>
+          <option value="1080x1080">Square 1:1 (1080 × 1080)</option>
+        </select>
+      </label>
+      <label>Drawing time per animal <span class="unit">seconds</span>
+        <input type="number" id="seconds" value="10" min="4" max="60" step="1">
+      </label>
+      <label>Music <span class="unit">optional · mp3, m4a, wav… up to {{ max_audio_mb }} MB</span>
+        <input type="file" id="music" accept="audio/*,.mp3,.m4a,.wav,.aac,.ogg,.flac">
+      </label>
+      <p class="span-2 group-label">Keep viewers watching</p>
+      <label class="check span-2">
+        <input type="checkbox" id="guess" checked>
+        <span>"Guess the animal?" while drawing; the name appears when the drawing is finished</span>
+      </label>
+      <label class="check span-2">
+        <input type="checkbox" id="intro" checked>
+        <span>Intro: a glimpse of all the drawings, a big headline, then "Let's draw!"</span>
+      </label>
+      <label>Intro headline <span class="unit">empty = the title</span>
+        <input type="text" id="hook" maxlength="40" placeholder="WILD ANIMALS">
+      </label>
+      <label class="check span-2">
+        <input type="checkbox" id="outro" checked>
+        <span>Ending: all the drawings together, then ask for likes, subscriptions and the next animal</span>
+      </label>
+      <label class="span-2">Ending question
+        <input type="text" id="question" maxlength="80" value="Which animal should I draw next?">
+      </label>
+      <label class="check span-2">
+        <input type="checkbox" id="sfx" checked>
+        <span>Sound effects</span>
+      </label>
+    </div>
+    <div class="actions">
+      <button type="button" class="primary" id="generate" {% if not ffmpeg.ok %}disabled{% endif %}>Draw the animals</button>
+      <p class="form-error" id="form-error" role="alert" hidden></p>
+    </div>
+  </section>
+
+  <section class="card status" id="status" hidden aria-live="polite">
+    <div class="card-head">
+      <h2 id="status-title">Drawing</h2>
+      <p class="hint" id="status-detail"></p>
+    </div>
+    <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progressbar">
+      <div class="bar" id="bar"></div>
+    </div>
+    <p class="progress-text"><span id="pct">0%</span> <span id="eta"></span></p>
+  </section>
+
+  <section class="card result" id="result" hidden>
+    <div class="card-head">
+      <h2>Result</h2>
+      <p class="hint" id="result-summary"></p>
+    </div>
+    <div class="result-body wide">
+      <div class="player wide">
+        <video id="video" controls playsinline preload="metadata"></video>
+      </div>
+      <div class="result-side">
+        <a class="button primary" id="download" href="#" download>Download MP4</a>
+        <a class="button" id="image" href="#">Download picture (PNG)</a>
+        <p class="disclaimer">The drawings and the pencil's movements are simulated with image processing. Make
+          sure you may use the photos and music you publish.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap footer">Runs on your computer. Uploaded files are deleted as soon as the video is made.</footer>
+<script src="{{ url_for('static', filename='animals.js') }}"></script>
+</body>
+</html>

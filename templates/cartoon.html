@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cartoon Stories</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<nav class="tabs" aria-label="Tools">
+  <div class="wrap">
+    <a class="tab" href="/">Vẽ chân dung</a>
+    <a class="tab" href="/story">Video câu chuyện</a>
+    <a class="tab" href="/players">Football players</a>
+    <a class="tab" href="/animals">Animals</a>
+    <a class="tab" href="/travel">Travel</a>
+    <a class="tab" href="/pets">Pet Diary</a>
+    <a class="tab active" href="/cartoon" aria-current="page">Cartoon</a>
+  </div>
+</nav>
+<header class="masthead">
+  <div class="wrap">
+    <h1>Cartoon stories</h1>
+    <p class="lede">"Peeko &amp; Friends": Peeko, Lulu, Kiko and Bobo act out stories for young children in
+      cartoon scenery. They talk to each other in speech bubbles, each in its own voice; children count along,
+      answer picture quizzes and learn one thing per episode. Season 1 (12 episodes) is ready to animate.</p>
+    <p class="notice" role="note">
+      <strong>Everything is made by the program.</strong> The characters are drawn frame by frame, so their arms,
+      legs, eyes and mouths move; the scenery and the music too, free to publish. You can also star your own
+      character from a picture: it is cut out and moved as a whole, like a paper puppet.
+    </p>
+  </div>
+</header>
+
+<main class="wrap">
+  {% if not ffmpeg.ok %}
+  <div class="alert alert-error" role="alert"><strong>FFmpeg is not available.</strong> {{ ffmpeg.message }}</div>
+  {% endif %}
+
+  <section class="card">
+    <div class="card-head">
+      <h2>1. Character</h2>
+    </div>
+    <div class="choices" role="radiogroup" aria-label="Character">
+      <label class="check"><input type="radio" name="character" value="peeko" checked>
+        <span><strong>{{ hero }}</strong> and friends: arms, legs, eyes and mouths move</span></label>
+      <label class="check"><input type="radio" name="character" value="picture">
+        <span>My own character, from a picture</span></label>
+    </div>
+    <div class="peeko" id="peeko-box">
+      <img src="/api/cartoon/cast.png" width="1000" height="360"
+           alt="Lulu the white bunny in a yellow beret, {{ hero }} the lilac sprout in yellow boots, Kiko the bluebird in round glasses and Bobo the bear cub with a red bow tie, waving">
+      <p class="hint">{{ about }}</p>
+      <ul class="hint cast-list">
+        {% for n, a in friends %}<li><strong>{{ n }}</strong>: {{ a }}.</li>{% endfor %}
+      </ul>
+    </div>
+    <div class="character" id="picture-box" hidden>
+      <div class="checker" id="cutout-box"><span id="cutout-note">no character yet</span><img id="cutout" alt="" hidden></div>
+      <div class="grid">
+        <p class="span-4 hint">A PNG with a transparent background works best; a picture on a plain background is
+          fine too (JPG, PNG or WebP, up to {{ max_upload_mb }} MB).</p>
+        <label class="span-2">Picture
+          <input type="file" id="picture" accept="image/*,.png,.jpg,.jpeg,.webp">
+        </label>
+        <label>In the picture it looks
+          <select id="faces">
+            <option value="right">to the right</option>
+            <option value="left">to the left</option>
+            <option value="front" selected>at us (front)</option>
+          </select>
+        </label>
+      </div>
+    </div>
+    <div class="grid name-row">
+      <label>Name
+        <input type="text" id="name" maxlength="40" value="{{ hero }}">
+      </label>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>2. Story</h2>
+      <p class="hint">Start from a ready-made episode, let AI write one, or write the scenes yourself.</p>
+    </div>
+    <div class="source">
+      <h3>Ready-made episodes</h3>
+      <div class="grid">
+        <label class="span-2">Episode
+          <select id="episode">
+            {% for g in groups %}<optgroup label="{{ g }}">
+              {% for e in episodes if e.group == g %}<option value="{{ e.id }}">{% if e.episode %}{{ e.episode }}. {% endif %}{{ e.title }}</option>{% endfor %}
+            </optgroup>{% endfor %}
+          </select>
+        </label>
+        <p class="span-2 hint" id="episode-lesson" aria-live="polite"></p>
+      </div>
+      <div class="row-actions">
+        <button type="button" id="load-episode">Load the episode</button>
+        <span class="hint" id="episode-info" aria-live="polite"></span>
+      </div>
+    </div>
+    <div class="source">
+      <h3>Write with AI</h3>
+      <div class="grid">
+        <label>Writer
+          <select id="provider">
+            <option value="gemini">Gemini (Google)</option>
+            <option value="openai">GPT (OpenAI)</option>
+          </select>
+        </label>
+        <label>API key <span class="unit" id="key-note">saved in this browser only</span>
+          <input type="password" id="ai-key" autocomplete="off" placeholder="paste your key">
+        </label>
+        <label>Model <span class="unit">optional</span>
+          <input type="text" id="model" maxlength="80" autocomplete="off">
+        </label>
+        <label>Scenes
+          <input type="number" id="scene-count" value="6" min="2" max="12" step="1">
+        </label>
+        <label class="span-4">Story idea <span class="unit">optional</span>
+          <textarea id="idea" rows="2" maxlength="500" placeholder="Peeko learns to say please and thank you"></textarea>
+        </label>
+      </div>
+      <div class="row-actions">
+        <button type="button" id="write">Write the story</button>
+        <button type="button" id="sample">Use the sample story</button>
+        <span class="hint" id="write-info" aria-live="polite"></span>
+      </div>
+    </div>
+    <div class="source">
+      <div class="grid">
+        <label class="span-2">Title
+          <input type="text" id="title" maxlength="60" placeholder="Peeko's Big Adventure">
+        </label>
+        <label class="span-2">Ending question
+          <input type="text" id="question" maxlength="90" placeholder="What should Peeko do next?">
+        </label>
+        <label class="span-2">Lesson <span class="unit">optional · read out at "The End"</span>
+          <input type="text" id="lesson" maxlength="140" placeholder="Brush your teeth every morning and every night.">
+        </label>
+        <label class="span-2">Next time <span class="unit">optional · the next episode, read out at the end</span>
+          <input type="text" id="next" maxlength="90" placeholder="Kiko Counts the Stars">
+        </label>
+        <label>Background music
+          <select id="tune">
+            <option value="happy">Cheerful (made by the program)</option>
+            <option value="calm">Calm lullaby (made by the program)</option>
+            <option value="none">None</option>
+          </select>
+        </label>
+        <label class="check span-3">
+          <input type="checkbox" id="hook">
+          <span>The first scene is a teaser, shown before the show's opening</span>
+        </label>
+      </div>
+      <p class="hint">Actions: {{ vocab.actions | join(", ") }}. Friends: {{ vocab.friends | join(", ") }}
+        (write "sad Lulu" for a sad, scared or sleepy friend). The conversation is one line each:
+        "Lulu: Hello! (wave)"; a line without a name is the hero's, "Narrator:" is read by the narrator. The
+        chalkboard shows words, a picture, things to count, or a picture quiz with a 3-2-1 countdown.</p>
+      <div class="scene-list" id="scene-list"></div>
+      <div class="row-actions">
+        <button type="button" id="add-scene">Add a scene</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="export-card">
+    <div class="card-head">
+      <h2>3. Video</h2>
+    </div>
+    <div class="grid">
+      <label>Frame
+        <select id="resolution">
+          <option value="1920x1080" selected>Landscape 16:9 (1920 × 1080)</option>
+          <option value="1080x1920">Portrait 9:16 (1080 × 1920)</option>
+          <option value="1080x1080">Square 1:1 (1080 × 1080)</option>
+        </select>
+      </label>
+      {% if voices %}
+      <label>Narrator's voice
+        <select id="narrator">
+          {% for v in voices %}<option value="{{ v }}" {% if v == narrator %}selected{% endif %}>{{ v }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Character's voice
+        <select id="voice">
+          {% for v in voices %}<option value="{{ v }}" {% if v == character_voice %}selected{% endif %}>{{ v }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Character's pitch <span class="unit">higher = younger</span>
+        <input type="number" id="pitch" value="1.25" min="0.7" max="1.7" step="0.05">
+      </label>
+      {% else %}
+      <p class="span-2 hint">No speech synthesiser was found on this computer: the story is told with subtitles only.</p>
+      {% endif %}
+      <label class="span-2">Your own music <span class="unit">optional, instead of the program's · mp3, m4a, wav… up to {{ max_audio_mb }} MB</span>
+        <input type="file" id="music" accept="audio/*,.mp3,.m4a,.wav,.aac,.ogg,.flac">
+      </label>
+      <label class="check span-2">
+        <input type="checkbox" id="series" checked>
+        <span>Series opening: the "{{ hero }} &amp; Friends" logo, the friends and the theme tune</span>
+      </label>
+      <label class="check span-2">
+        <input type="checkbox" id="intro" checked>
+        <span>Title: the hero drops in with the episode's title</span>
+      </label>
+      <label class="check span-2">
+        <input type="checkbox" id="outro" checked>
+        <span>Ending: "The End", then ask for likes, subscriptions and comments</span>
+      </label>
+      <label class="check span-2">
+        <input type="checkbox" id="sfx" checked>
+        <span>Sound effects (footsteps, boing, whoosh…)</span>
+      </label>
+    </div>
+    <div class="actions">
+      <button type="button" class="primary" id="generate" {% if not ffmpeg.ok %}disabled{% endif %}>Animate the story</button>
+      <p class="form-error" id="form-error" role="alert" hidden></p>
+    </div>
+  </section>
+
+  <section class="card status" id="status" hidden aria-live="polite">
+    <div class="card-head">
+      <h2 id="status-title">Animating</h2>
+      <p class="hint" id="status-detail"></p>
+    </div>
+    <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progressbar">
+      <div class="bar" id="bar"></div>
+    </div>
+    <p class="progress-text"><span id="pct">0%</span> <span id="eta"></span></p>
+  </section>
+
+  <section class="card result" id="result" hidden>
+    <div class="card-head">
+      <h2>Result</h2>
+      <p class="hint" id="result-summary"></p>
+    </div>
+    <div class="result-body wide">
+      <div class="player wide">
+        <video id="video" controls playsinline preload="metadata"></video>
+      </div>
+      <div class="result-side">
+        <a class="button primary" id="download" href="#" download>Download MP4</a>
+        <a class="button" id="image" href="#">Download poster (PNG)</a>
+        <p class="disclaimer">The animation is made by moving the cut-out picture; the voices are the computer's
+          speech synthesiser. Make sure you may publish the character and the music.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap footer">Runs on your computer. Only "Write with AI" needs the internet.</footer>
+<script>window.CARTOON = {{ {"vocab": vocab, "models": models, "env": env_keys, "episodes": episodes, "hero": hero} | tojson }};</script>
+<script src="{{ url_for('static', filename='cartoon.js') }}"></script>
+</body>
+</html>

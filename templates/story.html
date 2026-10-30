@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Video câu chuyện</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<nav class="tabs" aria-label="Tools">
+  <div class="wrap">
+    <a class="tab" href="/">Vẽ chân dung</a>
+    <a class="tab active" href="/story" aria-current="page">Video câu chuyện</a>
+    <a class="tab" href="/players">Football players</a>
+    <a class="tab" href="/animals">Animals</a>
+    <a class="tab" href="/travel">Travel</a>
+    <a class="tab" href="/pets">Pet Diary</a>
+    <a class="tab" href="/cartoon">Cartoon</a>
+  </div>
+</nav>
+<header class="masthead">
+  <div class="wrap">
+    <h1>Video câu chuyện</h1>
+    <p class="lede">Biến một câu chuyện (giáo dục, sức khoẻ…) thành video ngang 16:9: mỗi cảnh là một bức tranh
+      được vẽ bằng bút chì, kèm lời kể của bạn và phụ đề.</p>
+    <p class="notice" role="note">
+      <strong>Hiệu ứng mô phỏng.</strong> Tranh chì được tạo từ ảnh chụp bằng xử lý ảnh, và cây bút chỉ mô phỏng
+      quá trình vẽ. Ảnh được tìm trên Wikimedia Commons (ảnh có giấy phép tự do); tên tác giả và giấy phép
+      được ghi ở cuối video.
+    </p>
+  </div>
+</header>
+
+<main class="wrap">
+  {% if not ffmpeg.ok %}
+  <div class="alert alert-error" role="alert"><strong>Không tìm thấy FFmpeg.</strong> {{ ffmpeg.message }}</div>
+  {% endif %}
+
+  <form id="story-form" novalidate>
+    <section class="card">
+      <div class="card-head">
+        <h2>1. Câu chuyện</h2>
+        <p class="hint">Dán câu chuyện vào là xong: câu chuyện được tự động chia thành cảnh và mỗi cảnh được tự
+          tìm ảnh. Đoạn quá dài được tách theo câu, đoạn quá ngắn được gộp lại.</p>
+      </div>
+      <label class="field">Tiêu đề
+        <input type="text" id="title" placeholder="Ví dụ: Thói quen rửa tay của An">
+      </label>
+      <label class="field">Nội dung
+        <textarea id="story-text" rows="12" placeholder="Dán câu chuyện vào đây…&#10;&#10;Đoạn 1 …&#10;&#10;Đoạn 2 …"></textarea>
+      </label>
+      <div class="row-actions">
+        <label class="inline">Độ dài mỗi cảnh
+          <select id="scene-length">
+            <option value="short">Ngắn (~8 giây lời kể)</option>
+            <option value="medium" selected>Vừa (~12 giây)</option>
+            <option value="long">Dài (~18 giây)</option>
+          </select>
+        </label>
+        <button type="button" class="primary" id="split">Chia thành cảnh</button>
+        <span class="hint" id="split-info" aria-live="polite"></span>
+      </div>
+    </section>
+
+    <section class="card" id="scenes-card" hidden>
+      <div class="card-head">
+        <h2>2. Các cảnh</h2>
+        <p class="hint">Mỗi cảnh đã được tự chọn một ảnh có giấy phép tự do (Wikimedia Commons), các cảnh không
+          trùng ảnh. Bấm <strong>Đổi ảnh</strong> để chọn ảnh khác, sửa từ khoá tiếng Anh để tìm lại (dấu
+          <code>|</code> ngăn các phương án), hoặc tải ảnh riêng.</p>
+        <p class="hint" id="image-info" aria-live="polite"></p>
+      </div>
+      <div class="scene-list" id="scene-list"></div>
+    </section>
+
+    <section class="card" id="audio-card" hidden>
+      <div class="card-head">
+        <h2>3. Lời kể và nhạc nền</h2>
+      </div>
+      <div class="choice" role="radiogroup" aria-label="Lời kể">
+        <label><input type="radio" name="voice_mode" value="single" checked>
+          <span>Một file thu âm cho cả câu chuyện
+            <small>Khi đọc, hãy nghỉ khoảng 1 giây giữa các đoạn; công cụ tự chuyển cảnh ở chỗ nghỉ.</small></span></label>
+        <label><input type="radio" name="voice_mode" value="per_scene">
+          <span>Mỗi cảnh một file thu âm
+            <small>Chọn file ở từng cảnh phía trên. Cảnh dài đúng bằng đoạn thu âm của nó.</small></span></label>
+        {% if preview_voice %}
+        <label><input type="radio" name="voice_mode" value="preview">
+          <span>Chưa có thu âm, đọc thử bằng giọng máy (Linh)
+            <small>Để xem trước nhịp video; nên thay bằng giọng thật khi xuất bản.</small></span></label>
+        {% endif %}
+        <label><input type="radio" name="voice_mode" value="none">
+          <span>Không có lời kể
+            <small>Chỉ có phụ đề; mỗi cảnh dài theo tốc độ đọc.</small></span></label>
+      </div>
+      <div class="grid">
+        <label class="span-2" id="narration-field">File thu âm cả câu chuyện <span class="unit">m4a, mp3, wav… tối đa {{ max_audio_mb }} MB</span>
+          <input type="file" id="narration" accept="audio/*,.m4a,.mp3,.wav,.aac,.ogg,.flac">
+        </label>
+        <label class="span-2">Nhạc nền <span class="unit">không bắt buộc</span>
+          <input type="file" id="music" accept="audio/*,.m4a,.mp3,.wav,.aac,.ogg,.flac">
+        </label>
+        <label>Âm lượng nhạc nền
+          <input type="range" id="music-volume" min="0.03" max="0.4" step="0.01" value="0.12">
+        </label>
+      </div>
+    </section>
+
+    <section class="card" id="export-card" hidden>
+      <div class="card-head">
+        <h2>4. Xuất video</h2>
+        <p class="hint">Mất khoảng 1 giây xử lý cho mỗi giây video (video 4 phút ≈ 4 phút).</p>
+      </div>
+      <div class="grid">
+        <label>Độ phân giải
+          <select id="resolution">
+            {% for r in resolutions %}<option value="{{ r }}" {% if loop.first %}selected{% endif %}>{{ r.replace('x', ' × ') }}</option>{% endfor %}
+          </select>
+        </label>
+      </div>
+      <div class="actions">
+        <button type="submit" class="primary" id="generate" {% if not ffmpeg.ok %}disabled{% endif %}>Tạo video</button>
+        <p class="form-error" id="form-error" role="alert" hidden></p>
+      </div>
+    </section>
+  </form>
+
+  <section class="card status" id="status" hidden aria-live="polite">
+    <div class="card-head">
+      <h2 id="status-title">Đang tạo video</h2>
+      <p class="hint" id="status-detail"></p>
+    </div>
+    <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progressbar">
+      <div class="bar" id="bar"></div>
+    </div>
+    <p class="progress-text"><span id="pct">0%</span> <span id="eta"></span></p>
+  </section>
+
+  <section class="card result" id="result" hidden>
+    <div class="card-head">
+      <h2>Kết quả</h2>
+      <p class="hint" id="result-summary"></p>
+    </div>
+    <div class="result-body wide">
+      <div class="player wide">
+        <video id="video" controls playsinline preload="metadata"></video>
+      </div>
+      <div class="result-side">
+        <a class="button primary" id="download" href="#" download>Tải video MP4</a>
+        <a class="button" id="credits" href="#" hidden>Tải danh sách ghi công ảnh</a>
+        <ul class="notes" id="notes"></ul>
+        <p class="disclaimer">Tranh và chuyển động của bút được mô phỏng bằng xử lý ảnh. Hãy giữ phần ghi công
+          ảnh khi đăng video, và kiểm tra lại ảnh có người thật trước khi xuất bản.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap footer">
+  Chạy trên máy của bạn. Chỉ việc tìm ảnh cần Internet. File tải lên được xoá ngay sau khi tạo xong video.
+</footer>
+
+<script>window.STORY = {maxUploadMb: {{ max_upload_mb }}, maxAudioMb: {{ max_audio_mb }}};</script>
+<script src="{{ url_for('static', filename='story.js') }}"></script>
+</body>
+</html>
